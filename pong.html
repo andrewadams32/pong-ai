@@ -1,0 +1,285 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Basic Pong HTML Game</title>
+  <meta charset="UTF-8">
+  <style>
+  html, body {
+    height: 100%;
+    margin: 0;
+  }
+
+  body {
+    background: black;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+  </style>
+  <script src="objects.js"></script>
+  <script src="mdp.js"></script>
+  <script src="animation.js"></script>
+  <script src="qLearner.js"></script>
+  <style>
+    body {
+      display: flex;
+      flex-direction: column;
+      color: white;
+    }
+    .menu {
+      margin: .5rem;
+      border: 1px solid white;
+      padding: 1rem 5rem;
+      display: flex;
+      flex-direction: row;
+      justify-content: space-between;
+      width: 10rem;
+    }
+  </style>
+</head>
+<body>
+  <div class="menu">
+    <div class="play-button">
+      <label for="play">Play?</label>
+      <input id="play" type="checkbox" name="play?" />
+    </div>
+    <button id="refresh">Refresh</button>
+  </div>
+<canvas width="750" height="585" id="game"></canvas>
+<script>
+
+const playButton = document.getElementById("play")
+const refreshButton = document.getElementById("refresh")
+let hasPlayer = playButton.checked
+
+const canvas = document.getElementById('game');
+const context = canvas.getContext('2d');
+const grid = 15;
+const canvasMiddle = canvas.width / 2 - grid / 2
+
+const paddleHeight = grid * 5
+const maxPaddleY = canvas.height - grid - paddleHeight;
+
+const speedMult = 6
+const paddleSpeed = 6 * speedMult;
+const ballSpeed = 6 * speedMult;
+let fps, initialFPS = 30
+let elapsedTime = 0
+
+const leftPaddle = new Paddle({
+  canvas,
+  grid,
+  x: grid * 2,
+  y: canvas.height / 2 - paddleHeight / 2,
+  width: grid,
+  height: paddleHeight,
+  dx: 0,
+  dy: 0,
+  maxY: maxPaddleY,
+  speed: paddleSpeed,
+  points: 0
+})
+
+const rightPaddle = new Paddle({
+  canvas,
+  grid,
+  x: canvas.width - grid * 3,
+  y: canvas.height / 2 - paddleHeight / 2,
+  width: grid,
+  height: paddleHeight,
+  dx: 0,
+  dy: 0,
+  maxY: maxPaddleY,
+  speed: paddleSpeed,
+  points: 0
+})
+
+const ball = new Ball({
+  grid, canvas,
+  x: canvas.width / 2,
+  y: canvas.height / 2,
+  width: grid,
+  height: grid,
+  resetting: false,
+  dx: ballSpeed,
+  dy: -ballSpeed,
+});
+
+const Agent = new QLearner({
+  ball, 
+  otherPaddle: leftPaddle, 
+  self: rightPaddle, 
+  field: {
+    height: canvas.height, 
+    width: canvas.width,
+    maxY: canvas.height,
+    minY: grid,
+    maxPaddleY,
+    minX: 0,
+    maxX: canvas.width
+  },
+  name: "right"
+}, 1)
+
+const Agent2 = new PongBasicAgent({
+  ball, 
+  otherPaddle: rightPaddle, 
+  self: leftPaddle, 
+  field: {
+    height: canvas.height, 
+    width: canvas.width,
+    maxY: canvas.height,
+    minY: grid,
+    maxPaddleY,
+    minX: 0,
+    maxX: canvas.width
+  },
+  name: "left"
+}, 1)
+
+const MDP = new MDPAgent({
+  ball, 
+  otherPaddle: rightPaddle, 
+  self: leftPaddle, 
+  field: {
+    height: canvas.height, 
+    width: canvas.width,
+    maxY: canvas.height,
+    minY: grid,
+    maxPaddleY,
+    minX: 0,
+    maxX: canvas.width
+  },
+  gamma: 1
+})
+
+MDP.policyEvaluation()
+// game loop
+function loop(time) {
+  elapsedTime += time
+  context.clearRect(0,0,canvas.width,canvas.height);
+
+  leftPaddle.update()
+  rightPaddle.update();
+
+  const scored = ball.update(leftPaddle, rightPaddle)
+  
+  if(scored !== "none") { // increase ball speed on point
+    if(ball.dx > 0) ball.dx += 1; else ball.dx -= 1
+    if(ball.dy > 0) ball.dy += 1; else ball.dy -= 1
+  }
+
+  // check to see if ball collides with paddle. if they do change x velocity
+  if(!ball.handlePossibleCollision(rightPaddle))
+    ball.handlePossibleCollision(leftPaddle)
+
+  switch(Agent.getUpdates({ball, otherPaddle: leftPaddle, self: rightPaddle, scored})){ // returns next action
+      case "UP":
+        Agent.self.goUp()
+        break;
+      case "DOWN":
+        Agent.self.goDown()
+        break;
+      case "NONE":
+        Agent.self.stop();
+        break;
+    }
+
+    if(!hasPlayer) {
+      switch(Agent2.getUpdates({ball, otherPaddle: rightPaddle, self: leftPaddle, scored})){ // returns next action
+        case "UP":
+          Agent2.self.goUp()
+          break;
+        case "DOWN":
+          Agent2.self.goDown()
+          break;
+        case "NONE":
+          Agent2.self.stop();
+          break;
+      }
+    }
+
+  elapsedTime = 0
+
+  // draw paddles
+  context.fillStyle = 'white';
+  leftPaddle.draw()
+  rightPaddle.draw()
+
+  // draw ball
+  ball.draw()
+
+  // draw walls
+  context.fillStyle = 'lightgrey';
+  context.fillRect(0, 0, canvas.width, grid);
+  context.fillRect(0, canvas.height - grid, canvas.width, canvas.height);
+
+  context.font = "30px Arial";
+  
+  context.fillText(leftPaddle.points, canvasMiddle - 60 - (leftPaddle.points.toString().length * 10), 50);
+  context.fillText(rightPaddle.points, canvasMiddle + 50 + (rightPaddle.points.toString().length * 10), 50);
+
+  // draw dotted line down the middle
+  for (let i = grid; i < canvas.height - grid; i += grid * 2) {
+    context.fillRect(canvasMiddle, i, grid, grid);
+  }
+}
+
+// listen to keyboard events to move the paddles
+document.addEventListener('keydown', function(e) {
+  // up arrow key
+  if (e.which === 38) {
+    rightPaddle.goUp()
+  }
+  // down arrow key
+  else if (e.which === 40) {
+    rightPaddle.goDown()
+  }
+
+  // w key
+  if (e.which === 87) {
+    leftPaddle.goUp()
+  }
+  // a key
+  else if (e.which === 83) {
+    leftPaddle.goDown()
+  }
+});
+
+// start the game
+let AF = new AnimationFrame(fps, loop)
+
+// listen to keyboard events to stop the paddle if key is released
+document.addEventListener('keyup', function(e) {
+  e.preventDefault();
+  if (e.which === 38 || e.which === 40) {
+    rightPaddle.stop()
+  } else if (e.which === 83 || e.which === 87) {
+    leftPaddle.stop()  
+  } else if(e.which === 32) {
+    if(AF.playing)
+      AF.stop()
+    else
+      AF.start();
+  } else if(e.which === 39) {
+    if(AF.fps < 60) {
+      AF.stop()
+      AF.fps *= 2
+      AF.start()
+    }
+  } else if(e.which === 37) {
+    AF.stop()
+    AF.fps /= 2
+    AF.start()
+  }
+});
+
+playButton.addEventListener("click", (ev) => {
+  hasPlayer = ev.target.checked
+})
+
+refreshButton.addEventListener("click", () => location.reload())
+
+</script>
+</body>
+</html>
