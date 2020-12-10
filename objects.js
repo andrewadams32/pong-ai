@@ -10,13 +10,16 @@ class GameObject {
       this.y + this.height > gameObject.y;
     if (collided) {
       const diff = this.y - gameObject.y;
-      if (diff < gameObject.height / 3) {
-        return 0; // top
-      } else if (diff === gameObject.height / 2) {
-        // TODO: make it a range
-        return 1; // middle
+      if (diff < gameObject.height / 6) {
+        return 0;
+      } else if (diff < (2.5 * gameObject.height) / 6) {
+        return 1;
+      } else if (diff < (3.5 * gameObject.height) / 6) {
+        return 2;
+      } else if (diff < (5 * gameObject.height) / 6) {
+        return 3;
       } else {
-        return 2; // bottom
+        return 4;
       }
     } else {
       return -1;
@@ -74,25 +77,18 @@ class Ball extends GameObject {
     } else if (this.y + this.grid > this.canvas.height - this.grid) {
       this.y = this.canvas.height - this.grid * 2;
       this.dy *= -1;
-      this.dx > 0
-        ? (this.dx = Math.abs(this.initialSpeed.dx))
-        : (this.dx = -Math.abs(this.initialSpeed.dx));
-      this.dy > 0
-        ? (this.dy = Math.abs(this.initialSpeed.dy))
-        : (this.dy = -Math.abs(this.initialSpeed.dy));
     }
 
     // reset ball if it goes past paddle (but only if we haven't already done so)
     if ((this.x < 0 || this.x > this.canvas.width) && !this.resetting) {
       ball.resetting = true;
-
       if (this.x > this.canvas.width / 2) left.score();
       else right.score();
       setTimeout(() => {
         this.resetting = false;
         this.x = this.canvas.width / 2;
         this.y = this.canvas.height / 2;
-        // this.dy = 0;
+        this.dy = 0;
       }, 400);
       return this.x < 0 ? "right" : "left";
     } else return "none";
@@ -103,19 +99,30 @@ class Ball extends GameObject {
       this.dx *= -1;
       switch (collided) {
         case 0:
-          this.dy = -Math.abs(this.dy);
+          this.dy = -Math.abs(this.initialSpeed.dy * 1.5);
           break;
         case 1:
-          this.dy = 0;
+          this.dy = -Math.abs(this.initialSpeed.dy);
           break;
         case 2:
-          this.dy = Math.abs(this.dy);
+          this.dy = 0;
+          break;
+        case 3:
+          this.dy = Math.abs(this.initialSpeed.dy);
+          break;
+        case 4:
+          this.dy = Math.abs(this.initialSpeed.dy * 1.5);
+          break;
       }
       if (gameObject.speed > 0) {
-        this.dx > 0 ? (this.dx += 1) : (this.dx -= 1);
-        this.dy > 0 ? (this.dy += 1) : (this.dy -= 1);
+        this.dx =
+          this.dx > 0
+            ? Math.abs(1.5 * this.initialSpeed.dx)
+            : -Math.abs(1.5 * this.initialSpeed.dx);
+        this.dy > 0
+          ? Math.abs(1.5 * this.initialSpeed.dy)
+          : -Math.abs(1.5 * this.initialSpeed.dy);
       }
-
       if (this.x > gameObject.x)
         // move ball next to the paddle otherwise the collision will happen again
         // in the next frame

@@ -1,7 +1,3 @@
-// see https://gist.github.com/addyosmani/5434533
-// helps control rate limit in requestAnimationFrame
-// not neccessary, but useful for slowing down/speeding up the game for testing
-
 class AnimationFrame {
   constructor(fps = 60, animate) {
     this.requestID = 0;

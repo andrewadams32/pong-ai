@@ -26,18 +26,19 @@ function getRandomInt(max) {
 }
 
 class QLearner {
-  constructor(actorsAndField, gamma = 1) {
+  constructor(actorsAndField, gamma = 0.9) {
     // actors = ball, otherPaddle and self
     Object.assign(this, actorsAndField);
     this.gamma = gamma;
     this.fns = [
-      this.yDifference.bind(this),
-      this.lazy.bind(this),
-      // this.avoidBottom.bind(this),
+      // this.yDifference.bind(this),
+      // this.lazy.bind(this),
+      this.hitEdge.bind(this),
+      this.predict.bind(this),
     ];
     this.ws = Array.from({ length: this.fns.length }).map(() => Math.random()); // initialize weights to random between 0 and 1
-    this.alpha = 0.5;
-    this.eps = 0; // epsilon randomization factor
+    this.alpha = 0.7;
+    this.eps = 0.0; // epsilon randomization factor
   }
   getUpdates(updates) {
     // get new values from environment and return next move based on those values
@@ -53,70 +54,120 @@ class QLearner {
     let r = Math.random();
     if (r < this.eps) nextAction = actions[getRandomInt(actions.length - 1)];
     else nextAction = actions[findIndexOfGreatest(Qs)];
-
     //update weights
     this.updateW(this, nextAction);
     return nextAction;
   }
   predict(state, action) {
     let newState = this.getActionConsequence(state, action);
-    let diff = Math.abs(state.self.x - state.ball.x);
-    if (diff > state.field.width - state.self.width) {
-      //opposite side of field
-      if (state.ball.dy < 0) {
-        //going up
+    if (newState.self.x < this.field.width / 2) {
+      //left paddle
+      if (newState.ball.dx <= 0) {
+        //ball is heading towards left paddle
+        let futureBallY = newState.ball.y;
+        let futureBallX = newState.ball.x;
+        while (
+          futureBallX >
+          newState.ball.grid * 2 - newState.otherPaddle.width
+        ) {
+          futureBallY += newState.ball.dy;
+          futureBallX += newState.ball.dx; // dx is negative
+          if (futureBallY < newState.ball.grid) {
+            // top collision
+            futureBallY = newState.ball.grid;
+            newState.ball.dy *= -1;
+          } else if (
+            futureBallY + newState.ball.height >
+            this.field.height - newState.ball.grid
+          ) {
+            //bottom collission
+            futureBallY = this.field.height - newState.ball.grid * 2;
+            newState.ball.dy *= -1;
+          }
+        }
+        let diff = futureBallY - newState.self.y;
+        // if (
+        //   diff > newState.self.height / 4 &&
+        //   diff < newState.self.height - newState.self.height / 4
+        // )
+        //   diff = 0;
+        return diff === 0 ? 1 : 1 / Math.abs(diff);
+      }
+    } else {
+      //right paddle
+      if (newState.ball.dx >= 0) {
+        //ball is heading towards right paddle
+        let futureBallY = newState.ball.y;
+        let futureBallX = newState.ball.x;
+        while (
+          futureBallX <
+          this.field.width - newState.ball.grid * 2 - newState.otherPaddle.width
+        ) {
+          futureBallY += newState.ball.dy;
+          futureBallX += newState.ball.dx; // dx is positive
+          if (futureBallY < newState.ball.grid) {
+            // top collision
+            futureBallY = newState.ball.grid;
+            newState.ball.dy *= -1;
+          } else if (
+            futureBallY + newState.ball.height >
+            this.field.height - newState.ball.grid
+          ) {
+            //bottom collission
+            futureBallY = this.field.height - newState.ball.grid * 2;
+            newState.ball.dy *= -1;
+          }
+        }
+        let diff = futureBallY - newState.self.y;
+        // if (
+        //   diff > newState.self.height / 4 &&
+        //   diff < newState.self.height - newState.self.height / 4
+        // )
+        //   diff = 0;
+        return diff === 0 ? 1 : 1 / Math.abs(diff);
       }
     }
+    return 0;
   }
   //laziness feature
   lazy(state, action) {
     let newState = this.getActionConsequence(state, action);
-    const diff = Math.abs(newState.ball.x - this.self.x);
+    const diff = Math.abs(newState.ball.x - newState.self.x);
     if (diff > this.field.width / 2) {
       // other side of the field
       if (state.self.y === newState.self.y) {
         // didnt move
-        return 0.5;
+        return 1;
       } else {
         // moved
-        return -0.5;
+        return -1;
       }
     } else return 0;
   }
-  //avoid bottom feature
-  avoidBottom(state, action) {
+  //curveball
+  hitEdge(state, action) {
     let newState = this.getActionConsequence(state, action);
-    let res = 0;
-    if (newState.ball.x > this.field.width / 2) {
-      //right 1/2
-      let diff = newState.ball.y - newState.self.y;
-      if (newState.ball.y < newState.field.height / 2) {
-        // top half
-        if (diff > 0 && diff < newState.self.height) {
-          //ball within paddle y
-          if (diff < newState.self.height / 2) {
-            //ball y is in top half of paddle
-            res = -1;
-          } else res = 1;
-        }
-      } else {
-        // bottom half
-        if (diff > 0 && diff < newState.self.height) {
-          //ball within paddle y
-          if (diff < newState.self.height / 2) {
-            //ball y is in top half of paddle
-            res = 1;
-          } else res = -1;
-        }
-      }
+    const xDiff = Math.abs(state.ball.x - newState.self.x);
+    if (xDiff > state.field.width / 2) return 0; // if ball is on other side, return .5
+    if (newState.self.x < newState.field.width / 2) {
+      //left paddle
+      if (state.ball.dx > 0) return 0;
+    } else {
+      //right paddle
+      if (state.ball.dx < 0) return 0;
     }
-    return res;
+
+    let paddleCenter = newState.self.y + newState.self.height / 2;
+    let yDiff = Math.abs(newState.ball.y - paddleCenter);
+    if (yDiff > newState.self.height / 3 && yDiff < newState.self.height / 2)
+      return 1; // on the 1/3 edge
+    if (yDiff === 0) return 0.5;
+    return 1 / yDiff;
   }
   //y difference between ball and paddle feature
   yDifference(state, action) {
     let newState = this.getActionConsequence(state, action);
-    let difference =
-      newState.self.y - newState.ball.y + newState.self.height / 2;
+    let difference = newState.self.y - newState.ball.y;
     if (difference === 0) return 1;
     else return 1 / Math.abs(difference);
   }
@@ -137,12 +188,14 @@ class QLearner {
     let updated = JSON.parse(JSON.stringify(state));
     switch (action) {
       case "UP":
-        updated.self.y = state.self.y - state.self.speed;
+        updated.self.y -= state.self.speed;
         updated.ball.x += state.ball.dx;
+        updated.ball.y += state.ball.dy;
         break;
       case "DOWN":
-        updated.self.y = state.self.y + state.self.speed;
+        updated.self.y += state.self.speed;
         updated.ball.y += state.ball.dy;
+        updated.ball.x += state.ball.dx;
         break;
       case "NONE":
         break;

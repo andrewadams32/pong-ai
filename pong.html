@@ -60,11 +60,10 @@ const canvasMiddle = canvas.width / 2 - grid / 2
 const paddleHeight = grid * 5
 const maxPaddleY = canvas.height - grid - paddleHeight;
 
-const speedMult = 6
+const speedMult = 1
 const paddleSpeed = 6 * speedMult;
 const ballSpeed = 6 * speedMult;
-let fps, initialFPS = 30
-let elapsedTime = 0
+let fps = initialFPS = 60
 
 const leftPaddle = new Paddle({
   canvas,
@@ -73,6 +72,7 @@ const leftPaddle = new Paddle({
   y: canvas.height / 2 - paddleHeight / 2,
   width: grid,
   height: paddleHeight,
+  initialHeight: paddleHeight,
   dx: 0,
   dy: 0,
   maxY: maxPaddleY,
@@ -87,6 +87,7 @@ const rightPaddle = new Paddle({
   y: canvas.height / 2 - paddleHeight / 2,
   width: grid,
   height: paddleHeight,
+  initialHeight: paddleHeight,
   dx: 0,
   dy: 0,
   maxY: maxPaddleY,
@@ -137,43 +138,19 @@ const Agent2 = new PongBasicAgent({
   name: "left"
 }, 1)
 
-const MDP = new MDPAgent({
-  ball, 
-  otherPaddle: rightPaddle, 
-  self: leftPaddle, 
-  field: {
-    height: canvas.height, 
-    width: canvas.width,
-    maxY: canvas.height,
-    minY: grid,
-    maxPaddleY,
-    minX: 0,
-    maxX: canvas.width
-  },
-  gamma: 1
-})
-
-MDP.policyEvaluation()
 // game loop
 function loop(time) {
-  elapsedTime += time
   context.clearRect(0,0,canvas.width,canvas.height);
-
+  
   leftPaddle.update()
   rightPaddle.update();
-
-  const scored = ball.update(leftPaddle, rightPaddle)
   
-  if(scored !== "none") { // increase ball speed on point
-    if(ball.dx > 0) ball.dx += 1; else ball.dx -= 1
-    if(ball.dy > 0) ball.dy += 1; else ball.dy -= 1
-  }
-
+  const scored = ball.update(leftPaddle, rightPaddle)
   // check to see if ball collides with paddle. if they do change x velocity
   if(!ball.handlePossibleCollision(rightPaddle))
     ball.handlePossibleCollision(leftPaddle)
-
-  switch(Agent.getUpdates({ball, otherPaddle: leftPaddle, self: rightPaddle, scored})){ // returns next action
+  
+    switch(Agent.getUpdates({ball, otherPaddle: leftPaddle, self: rightPaddle, scored})){ // returns next action
       case "UP":
         Agent.self.goUp()
         break;
@@ -183,26 +160,23 @@ function loop(time) {
       case "NONE":
         Agent.self.stop();
         break;
+  }
+  if(!hasPlayer) {
+    switch(Agent2.getUpdates({ball, otherPaddle: rightPaddle, self: leftPaddle, scored})){ // returns next action
+      case "UP":
+        Agent2.self.goUp()
+        break;
+      case "DOWN":
+        Agent2.self.goDown()
+        break;
+      case "NONE":
+        Agent2.self.stop();
+        break;
     }
-
-    if(!hasPlayer) {
-      switch(Agent2.getUpdates({ball, otherPaddle: rightPaddle, self: leftPaddle, scored})){ // returns next action
-        case "UP":
-          Agent2.self.goUp()
-          break;
-        case "DOWN":
-          Agent2.self.goDown()
-          break;
-        case "NONE":
-          Agent2.self.stop();
-          break;
-      }
-    }
-
-  elapsedTime = 0
+  }
 
   // draw paddles
-  context.fillStyle = 'white';
+  context.fillStyle = 'cyan';
   leftPaddle.draw()
   rightPaddle.draw()
 
@@ -210,16 +184,17 @@ function loop(time) {
   ball.draw()
 
   // draw walls
-  context.fillStyle = 'lightgrey';
+  context.fillStyle = 'cyan';
   context.fillRect(0, 0, canvas.width, grid);
   context.fillRect(0, canvas.height - grid, canvas.width, canvas.height);
 
   context.font = "30px Arial";
-  
+  context.fillStyle = 'white';
   context.fillText(leftPaddle.points, canvasMiddle - 60 - (leftPaddle.points.toString().length * 10), 50);
   context.fillText(rightPaddle.points, canvasMiddle + 50 + (rightPaddle.points.toString().length * 10), 50);
 
   // draw dotted line down the middle
+  context.fillStyle = 'cyan';
   for (let i = grid; i < canvas.height - grid; i += grid * 2) {
     context.fillRect(canvasMiddle, i, grid, grid);
   }
