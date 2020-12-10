@@ -212,7 +212,7 @@ class QLearner {
     return diff;
   }
   //calculate reward for scoring
-  reward() {
+  reward(state) {
     if (this.scored !== "none") {
       if (this.scored === this.name) {
         return 1;
@@ -227,7 +227,7 @@ class QLearner {
 
     //normalize features
     let normFs;
-    if (fs.length > 1) {
+    if (fs.length > 3) {
       let max = Math.max(...fs);
       let min = Math.min(...fs);
       normFs = fs.map(normalize(min, max));
@@ -237,8 +237,5 @@ class QLearner {
       let delta = this.alpha * this.difference(state, action) * normFs[i];
       this.ws[i] += delta;
     }
-    //scale down weights to reduce size in case they don't converge
-    let wsMax = Math.max(...this.ws);
-    this.ws = this.ws.map((w) => w / wsMax);
   }
 }

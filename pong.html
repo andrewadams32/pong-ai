@@ -45,6 +45,7 @@
     </div>
     <button id="refresh">Refresh</button>
   </div>
+  <p>Press Spacebar to start!</p>
 <canvas width="750" height="585" id="game"></canvas>
 <script>
 
@@ -122,7 +123,7 @@ const Agent = new QLearner({
   name: "right"
 }, 1)
 
-const Agent2 = new PongBasicAgent({
+const Agent2 = new QLearner({
   ball, 
   otherPaddle: rightPaddle, 
   self: leftPaddle, 
