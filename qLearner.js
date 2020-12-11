@@ -227,7 +227,7 @@ class QLearner {
 
     //normalize features
     let normFs;
-    if (fs.length > 3) {
+    if (fs.length > 5) {
       let max = Math.max(...fs);
       let min = Math.min(...fs);
       normFs = fs.map(normalize(min, max));
